@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>LinkedList Memory Allocation Simulator</title>
+<style>
+:root{--m:1;--bg:#12163a;--panel:#1c2150;--line:#323a82;--ink:#eef0ff;--mute:#9aa3dd;--free:#2a3070;--accent:#ffd166;--ok:#06d6a0;--bad:#ff5d73}
+*{box-sizing:border-box}
+body{margin:0;font-family:"Trebuchet MS","Segoe UI",system-ui,sans-serif;background:radial-gradient(circle at 10% 0%,#2a2f7a 0,var(--bg) 45%);color:var(--ink);min-height:100vh;padding:24px}
+.wrap{max-width:1100px;margin:auto}
+h1{margin:0 0 4px;font-size:clamp(24px,4vw,38px);background:linear-gradient(90deg,#ffd166,#ff7eb6,#6ee7ff);-webkit-background-clip:text;background-clip:text;color:transparent}
+.sub{color:var(--mute);margin:0 0 20px}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px;margin-bottom:16px}
+.panel h2{margin:0 0 12px;font-size:16px}
+.controls{display:flex;flex-wrap:wrap;gap:12px;align-items:end}
+label{display:flex;flex-direction:column;font-size:13px;color:var(--mute);gap:4px}
+input,select{background:#0e1230;color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:9px 10px;font:inherit;min-width:120px}
+button{border:0;border-radius:8px;padding:10px 16px;font:inherit;font-weight:700;cursor:pointer;color:#12163a;background:var(--accent)}
+button.alt{background:#6ee7ff}button.ghost{background:transparent;color:var(--ink);border:1px solid var(--line)}
+button:hover{filter:brightness(1.1)}
+:focus-visible{outline:3px solid #6ee7ff;outline-offset:2px}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px}
+.stat{background:#0e1230;border-radius:10px;padding:10px 12px;border-left:4px solid var(--c)}
+.stat b{display:block;font-size:22px}.stat span{font-size:12px;color:var(--mute)}
+.bar{display:flex;height:84px;border-radius:10px;overflow:hidden;border:2px solid var(--line);background:#0e1230}
+.seg{display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:12px;font-weight:700;overflow:hidden;border-right:2px solid #12163a;min-width:0;cursor:pointer;color:#12163a;transition:flex .4s}
+.seg.hole{background:#252b66;color:var(--mute);cursor:default}
+.seg small{font-weight:400}
+.ruler{display:flex;justify-content:space-between;font-size:12px;color:var(--mute);margin-top:6px}
+.list{display:flex;align-items:center;overflow-x:auto;padding:8px 2px 14px}
+.node{flex:none;display:grid;grid-template-columns:auto auto;border-radius:10px;overflow:hidden;border:2px solid var(--c);background:#0e1230;font-size:12px;min-width:118px}
+.node div{padding:4px 8px;border:1px solid #232a66}
+.node .t{grid-column:1/3;background:var(--c);color:#12163a;font-weight:800;text-align:center}
+.node .p{grid-column:1/3;color:var(--mute);text-align:center}
+.arrow{flex:none;color:var(--mute);font-size:22px;padding:0 6px}
+.null{flex:none;border:2px dashed var(--line);border-radius:10px;padding:8px 12px;color:var(--mute);font-size:12px}
+.hl{box-shadow:0 0 0 3px var(--accent),0 0 18px var(--accent)}
+#log{max-height:160px;overflow:auto;font-size:13px;line-height:1.6;margin:0;padding:0;list-style:none}
+#log li.ok{color:var(--ok)}#log li.bad{color:var(--bad)}#log li.info{color:var(--mute)}
+.hint{font-size:12px;color:var(--mute);margin-top:8px}
+.seg{transition:flex calc(.6s*var(--m)) cubic-bezier(.3,.8,.3,1)}
+.seg.new{animation:segIn calc(.6s*var(--m)) ease-out}
+@keyframes segIn{from{opacity:0;filter:brightness(2.5)}to{opacity:1;filter:none}}
+.node{transition:transform calc(.2s*var(--m)),opacity calc(.2s*var(--m)),box-shadow calc(.2s*var(--m))}
+.node.new{animation:nodeIn calc(.55s*var(--m)) cubic-bezier(.3,1.4,.5,1)}
+@keyframes nodeIn{from{opacity:0;transform:translateY(-26px) scale(.7)}to{opacity:1;transform:none}}
+.scan{outline:3px solid #6ee7ff;outline-offset:-3px;filter:brightness(1.35)}
+.node.scan{transform:translateY(-6px);box-shadow:0 8px 20px #6ee7ff77}
+.reject{opacity:.4}
+.fit{outline:3px solid var(--ok);outline-offset:-3px}
+.hl{animation:glow calc(1s*var(--m)) 2}
+@keyframes glow{50%{box-shadow:0 0 0 3px var(--accent),0 0 30px var(--accent)}}
+.arrow{animation:flow calc(1.6s*var(--m)) ease-in-out infinite}
+@keyframes flow{50%{transform:translateX(4px);color:#6ee7ff}}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+.seg{position:relative}.seg span,.seg small{position:relative}
+.seg.hole::before{content:"";position:absolute;inset:0;background:repeating-linear-gradient(45deg,var(--free),var(--free) 8px,#252b66 8px,#252b66 16px);background-size:22.63px 22.63px;animation:stripes calc(1.2s*var(--m)) linear infinite}
+@keyframes stripes{to{background-position:22.63px 0}}
+h1{background-size:200% 100%;animation:shimmer calc(6s*var(--m)) linear infinite}
+@keyframes shimmer{to{background-position:200% 0}}
+body::before{content:"";position:fixed;width:55vmax;height:55vmax;border-radius:50%;top:-15vmax;right:-15vmax;background:radial-gradient(#ff7eb633,transparent 65%);animation:drift calc(16s*var(--m)) ease-in-out infinite alternate;pointer-events:none;z-index:-1}
+body::after{content:"";position:fixed;width:50vmax;height:50vmax;border-radius:50%;bottom:-15vmax;left:-15vmax;background:radial-gradient(#6ee7ff2b,transparent 65%);animation:drift calc(20s*var(--m)) ease-in-out infinite alternate-reverse;pointer-events:none;z-index:-1}
+@keyframes drift{to{transform:translate(-8vmax,6vmax) scale(1.2)}}
+.panel{animation:rise calc(.6s*var(--m)) both}
+@keyframes rise{from{opacity:0;transform:translateY(18px)}}
+.panel:nth-of-type(2){animation-delay:.08s}.panel:nth-of-type(3){animation-delay:.16s}.panel:nth-of-type(4){animation-delay:.24s}.panel:nth-of-type(5){animation-delay:.32s}
+#log li{animation:slideIn calc(.4s*var(--m))}
+@keyframes slideIn{from{opacity:0;transform:translateX(-20px)}}
+button{transition:transform .15s,filter .15s}
+button:hover{transform:translateY(-2px)}button:active{transform:scale(.94)}
+.stat b{transform-origin:left}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>LinkedList Memory Allocation Simulator</h1>
+  <p class="sub">Memory is a linked list of blocks. Allocate processes, free them by clicking, and watch holes split and merge.</p>
+
+  <div class="panel">
+    <h2>Controls</h2>
+    <div class="controls">
+      <label>Total memory (KB)<input id="total" type="number" value="100" min="10" max="1000"></label>
+      <button class="alt" id="reset">Reset memory</button>
+      <label>Strategy
+        <select id="strat">
+          <option value="first">First fit</option>
+          <option value="best">Best fit</option>
+          <option value="worst">Worst fit</option>
+        </select>
+      </label>
+      <label>Process size (KB)<input id="size" type="number" value="15" min="1"></label>
+      <label>Animation speed <span id="spdv">1x</span>
+        <input id="spd" type="range" min="0.25" max="3" step="0.25" value="1" style="min-width:150px;padding:0">
+      </label>
+      <button id="alloc">Allocate</button>
+      <button class="ghost" id="compact">Compact memory</button>
+      <button class="ghost" id="demo">Load demo</button>
+    </div>
+    <div class="hint">Click a coloured block (or a node) to free it. Neighbouring free holes merge automatically.</div>
+  </div>
+
+  <div class="panel">
+    <h2>Memory map</h2>
+    <div class="bar" id="bar"></div>
+    <div class="ruler"><span>0</span><span id="rEnd"></span></div>
+  </div>
+
+  <div class="panel">
+    <h2>Linked list</h2>
+    <div class="list" id="list"></div>
+  </div>
+
+  <div class="panel">
+    <h2>Statistics</h2>
+    <div class="stats" id="stats"></div>
+  </div>
+
+  <div class="panel">
+    <h2>Event log</h2>
+    <ul id="log"></ul>
+  </div>
+</div>
+
+<script>
+const COLORS=["#ffd166","#ff7eb6","#6ee7ff","#06d6a0","#c3a6ff","#ff9f68","#a3e635","#f472b6"];
+let prevSt=[],M=1,head=null,total=100,pid=1,lastNode=null,hlId=null,nid=1,busy=false,seen=new Set();
+const segEls=new Map();
+const $=id=>document.getElementById(id);
+const sleep=ms=>new Promise(r=>setTimeout(r,ms*M));
+const reduce=()=>matchMedia("(prefers-reduced-motion:reduce)").matches;
+function mk(start,size,p){return{id:nid++,start,size,pid:p,next:null}}
+function nodes(){const a=[];for(let n=head;n;n=n.next)a.push(n);return a}
+function log(msg,cls="info"){const li=document.createElement("li");li.className=cls;li.textContent=msg;$("log").prepend(li)}
+function colorOf(n){return COLORS[(n.pid-1)%COLORS.length]}
+const els=id=>document.querySelectorAll('[data-nid="'+id+'"]');
+
+function fly(txt,color,fromEl,toEl){return new Promise(res=>{
+  if(reduce()||!fromEl||!toEl)return res();
+  const a=fromEl.getBoundingClientRect(),b=toEl.getBoundingClientRect(),c=document.createElement("div");
+  c.textContent=txt;
+  c.style.cssText="position:fixed;z-index:50;left:0;top:0;padding:6px 12px;border-radius:20px;font-weight:800;font-size:13px;pointer-events:none;color:#12163a;background:"+color+";box-shadow:0 6px 20px "+color+"99";
+  document.body.appendChild(c);
+  const w=c.offsetWidth,h=c.offsetHeight,x0=a.left+a.width/2-w/2,y0=a.top+a.height/2-h/2,x1=b.left+b.width/2-w/2,y1=b.top+b.height/2-h/2;
+  c.animate([
+    {transform:`translate(${x0}px,${y0}px) scale(.6)`,opacity:0},
+    {transform:`translate(${x0}px,${y0}px) scale(1)`,opacity:1,offset:.15},
+    {transform:`translate(${(x0+x1)/2}px,${Math.min(y0,y1)-60}px) scale(1.15)`,offset:.55},
+    {transform:`translate(${x1}px,${y1}px) scale(.7)`,opacity:.9}
+  ],{duration:800*M,easing:"ease-in-out"}).onfinish=()=>{c.remove();res()};
+})}
+function burst(el,color){
+  if(reduce()||!el)return;
+  const r=el.getBoundingClientRect(),cx=r.left+r.width/2,cy=r.top+r.height/2;
+  for(let i=0;i<14;i++){
+    const d=document.createElement("div");
+    d.style.cssText="position:fixed;z-index:50;left:"+cx+"px;top:"+cy+"px;width:8px;height:8px;border-radius:50%;pointer-events:none;background:"+color;
+    document.body.appendChild(d);
+    const ang=i/14*6.283,dist=50+Math.random()*50;
+    d.animate([{transform:"translate(0,0) scale(1)",opacity:1},{transform:`translate(${Math.cos(ang)*dist}px,${Math.sin(ang)*dist}px) scale(0)`,opacity:0}],{duration:700*M,easing:"ease-out"}).onfinish=()=>d.remove();
+  }
+}
+function countUp(){
+  document.querySelectorAll("#stats b").forEach((b,i)=>{
+    const t=b.textContent,to=parseFloat(t),suf=t.replace(/^[\d.]+/,""),from=prevSt[i]??0;
+    prevSt[i]=to;
+    if(reduce()||from===to)return;
+    const d=700*M,t0=performance.now();
+    (function tick(now){const p=Math.min(1,(now-t0)/d);b.textContent=Math.round(from+(to-from)*p)+suf;if(p<1)requestAnimationFrame(tick)})(t0);
+    b.animate([{transform:"scale(1.25)",color:"#ffd166"},{transform:"none"}],{duration:500*M});
+  });
+}
+
+function reset(){
+  if(busy)return;
+  total=Math.max(10,parseInt($("total").value)||100);
+  head=mk(0,total,null);lastNode=head;pid=1;hlId=null;seen=new Set();prevSt=[];
+  $("log").innerHTML="";log("Memory reset: one free block of "+total+" KB.");
+  render();
+}
+
+function scanOrder(size,strat){
+  const all=nodes(),fits=n=>n.pid===null&&n.size>=size;
+  if(strat==="best"||strat==="worst")return all;
+  const out=[];for(const n of all){out.push(n);if(fits(n))break}
+  return out;
+}
+
+function findHole(size,strat){
+  const holes=nodes().filter(n=>n.pid===null&&n.size>=size);
+  if(!holes.length)return null;
+  if(strat==="first")return holes[0];
+  if(strat==="best")return holes.reduce((a,b)=>b.size<a.size?b:a);
+  return holes.reduce((a,b)=>b.size>a.size?b:a);
+}
+
+async function allocate(size){
+  if(busy)return;
+  size=parseInt(size);
+  if(!size||size<1)return log("Enter a valid size.","bad");
+  const strat=$("strat").value,hole=findHole(size,strat);
+  busy=true;
+  try{
+    if(!reduce()){
+      for(const n of scanOrder(size,strat)){
+        const e=els(n.id),ok=n.pid===null&&n.size>=size;
+        e.forEach(x=>x.classList.add("scan"));
+        await sleep(380);
+        e.forEach(x=>{x.classList.remove("scan");x.classList.add(ok?"fit":"reject")});
+      }
+      if(hole){els(hole.id).forEach(x=>x.classList.add("scan"));await sleep(450)}
+      document.querySelectorAll(".scan,.fit,.reject").forEach(x=>x.classList.remove("scan","fit","reject"));
+    }
+    if(hole)await fly("P"+pid+" \u00b7 "+size+" KB",colorOf({pid}),$("alloc"),segEls.get(hole.id));
+    if(!hole){
+      const fr=nodes().filter(n=>n.pid===null).reduce((s,n)=>s+n.size,0);
+      log("P"+pid+" ("+size+" KB) failed: "+(fr>=size?"enough free memory in total ("+fr+" KB) but it is fragmented. Try compaction.":"not enough free memory."),"bad");
+      document.querySelectorAll("#bar .seg").forEach(x=>x.animate([{transform:"translateX(0)"},{transform:"translateX(-6px)"},{transform:"translateX(6px)"},{transform:"translateX(0)"}],{duration:350*M}));
+      return;
+    }
+    const p=pid++;
+    if(hole.size>size){
+      const rest=mk(hole.start+size,hole.size-size,null);
+      rest.next=hole.next;hole.next=rest;hole.size=size;
+    }
+    hole.pid=p;lastNode=hole.next||head;hlId=hole.id;
+    log("P"+p+" got "+size+" KB at address "+hole.start+" ("+strat+" fit).","ok");
+    render();
+    await sleep(650);
+    burst(segEls.get(hole.id),colorOf(hole));
+  }finally{busy=false}
+}
+
+function free(id){
+  if(busy)return;
+  const n=nodes().find(x=>x.id===id);
+  if(!n||n.pid===null)return;
+  log("P"+n.pid+" freed ("+n.size+" KB at "+n.start+").");
+  n.pid=null;hlId=n.id;merge();render();
+  els(n.id).forEach(e=>e.animate([{filter:"brightness(2.2)"},{filter:"none"}],{duration:600*M}));
+  setTimeout(()=>burst(segEls.get(n.id),"#6ee7ff"),300*M);
+}
+
+function merge(){
+  for(let n=head;n&&n.next;){
+    if(n.pid===null&&n.next.pid===null){
+      n.size+=n.next.size;
+      if(lastNode===n.next)lastNode=n;
+      n.next=n.next.next;log("Adjacent holes merged into "+n.size+" KB.");
+    }else n=n.next;
+  }
+}
+
+function compact(){
+  if(busy)return;
+  const used=nodes().filter(n=>n.pid!==null);
+  if(!used.length)return log("Nothing to compact.","bad");
+  let addr=0;
+  used.forEach((n,i)=>{n.start=addr;addr+=n.size;n.next=used[i+1]||null});
+  head=used[0];
+  if(addr<total){used[used.length-1].next=mk(addr,total-addr,null)}
+  lastNode=head;hlId=null;
+  log("Compacted: all processes moved to the start, one hole of "+(total-addr)+" KB.","ok");
+  render();
+}
+
+async function demo(){
+  if(busy)return;
+  reset();
+  for(const s of [20,10,25,15]){$("size").value=s;await allocate(s)}
+  const u=nodes().filter(n=>n.pid!==null);
+  free(u[1].id);
+  $("size").value=15;
+}
+
+function renderBar(all){
+  const bar=$("bar"),ids=new Set(all.map(n=>n.id)),before=new Map();
+  for(const [id,e] of segEls){
+    if(!ids.has(id)){e.remove();segEls.delete(id)}
+    else before.set(id,e.getBoundingClientRect().left);
+  }
+  all.forEach((n,i)=>{
+    let e=segEls.get(n.id);
+    const isNew=!e;
+    if(isNew){e=document.createElement("div");e.className="seg new";e.dataset.nid=n.id;e.style.flex="0.001";segEls.set(n.id,e)}
+    if(bar.children[i]!==e)bar.insertBefore(e,bar.children[i]||null);
+    if(isNew)e.offsetWidth;
+    const used=n.pid!==null;
+    e.classList.toggle("hole",!used);
+    e.classList.toggle("hl",n.id===hlId);
+    e.style.flex=n.size;
+    e.style.background=used?colorOf(n):"";
+    if(used){e.dataset.id=n.id;e.title="Click to free P"+n.pid}else{delete e.dataset.id;e.title="Free hole: "+n.size+" KB"}
+    e.innerHTML="<span>"+(used?"P"+n.pid:"Free")+"</span><small>"+n.size+" KB</small>";
+  });
+  for(const [id,x] of before){
+    const e=segEls.get(id);if(!e)continue;
+    const dx=x-e.getBoundingClientRect().left;
+    if(Math.abs(dx)>2&&!reduce())e.animate([{transform:"translateX("+dx+"px)"},{transform:"none"}],{duration:650*M,easing:"cubic-bezier(.3,.8,.3,1)"});
+  }
+}
+
+function render(){
+  const all=nodes();
+  $("rEnd").textContent=total+" KB";
+  renderBar(all);
+  $("list").innerHTML='<div class="null">HEAD</div><span class="arrow">&rarr;</span>'+
+    all.map(n=>{
+      const used=n.pid!==null,c=used?colorOf(n):"#5560b8";
+      const key=n.id+":"+n.pid+":"+n.size;
+      const cls=(seen.has(key)?"":"new")+(n.id===hlId?" hl":"");
+      return `<div class="node ${cls}" data-nid="${n.id}" style="--c:${c};${used?"cursor:pointer":""}" ${used?`data-id="${n.id}"`:""}>
+        <div class="t">${used?"P"+n.pid:"FREE"}</div>
+        <div>start</div><div>${n.start}</div>
+        <div>size</div><div>${n.size}</div>
+        <div class="p">next &rarr; ${n.next?n.next.start:"NULL"}</div></div><span class="arrow">&rarr;</span>`;
+    }).join("")+'<div class="null">NULL</div>';
+  seen=new Set(all.map(n=>n.id+":"+n.pid+":"+n.size));
+  const holes=all.filter(n=>n.pid===null),usedKB=all.filter(n=>n.pid!==null).reduce((s,n)=>s+n.size,0);
+  const freeKB=total-usedKB,largest=holes.reduce((m,n)=>Math.max(m,n.size),0);
+  const frag=freeKB?Math.round((1-largest/freeKB)*100):0;
+  const st=[["Used",usedKB+" KB","#ffd166"],["Free",freeKB+" KB","#06d6a0"],["Holes",holes.length,"#6ee7ff"],["Largest hole",largest+" KB","#c3a6ff"],["External fragmentation",frag+"%","#ff5d73"],["Utilization",Math.round(usedKB/total*100)+"%","#ff9f68"]];
+  $("stats").innerHTML=st.map(s=>`<div class="stat" style="--c:${s[2]}"><b>${s[1]}</b><span>${s[0]}</span></div>`).join("");
+  countUp();
+}
+
+document.addEventListener("click",e=>{
+  const t=e.target.closest("[data-id]");
+  if(t)free(parseInt(t.dataset.id));
+});
+$("alloc").onclick=()=>allocate($("size").value);
+$("size").addEventListener("keydown",e=>{if(e.key==="Enter")allocate($("size").value)});
+$("reset").onclick=reset;$("compact").onclick=compact;$("demo").onclick=demo;
+$("spd").oninput=e=>{const v=parseFloat(e.target.value);M=1/v;document.documentElement.style.setProperty("--m",M);$("spdv").textContent=v+"x"+(v<1?" (slow)":v>1?" (fast)":"")};
+reset();
+</script>
+</body>
+</html>
