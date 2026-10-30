@@ -1,0 +1,966 @@
+
+<!-- saved from url=(0259)https://934332306-atari-embeds.googleusercontent.com/embeds/4c8a3211fd76886a93ab92bca3a50520/inner-frame-minified.html?jsh=m%3B%2F_%2Fscs%2Fabc-static%2F_%2Fjs%2Fk%3Dgapi.lb.en.etOqPKhAhvg.O%2Fd%3D1%2Frs%3DAHpOoo-l5JrVgGKVELwC844E6riBHX86-w%2Fm%3D__features__ -->
+<html lang="en"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8"><!--<base href="https://934332306-atari-embeds.googleusercontent.com/embeds/4c8a3211fd76886a93ab92bca3a50520/inner-frame-minified.html?jsh=m%3B%2F_%2Fscs%2Fabc-static%2F_%2Fjs%2Fk%3Dgapi.lb.en.etOqPKhAhvg.O%2Fd%3D1%2Frs%3DAHpOoo-l5JrVgGKVELwC844E6riBHX86-w%2Fm%3D__features__" target="_blank">--><base href="." target="_blank">
+      <script>
+        (function() {
+          // Listen during capturing phase to intercept before <base target="_blank"> takes effect.
+          document.addEventListener('click', function(e) {
+            // Find the nearest ancestor anchor (handles nested icons, spans, svgs).
+            var el = e.target;
+            var anchor = null;
+            while (el && el !== document) {
+              if (el.tagName && el.tagName.toLowerCase() === 'a') {
+                anchor = el;
+                break;
+              }
+              el = el.parentElement;
+            }
+            if (!anchor) return;
+
+            // Only intercept relative in-page fragment links, not external links with hashes.
+            var href = anchor.getAttribute('href');
+            if (!href) return;
+            href = href.trim();
+            if (!href.startsWith('#')) return;
+
+            // Prevent default <base target="_blank"> navigation to a new blank tab.
+            e.preventDefault();
+            e.stopPropagation();
+
+            // Handle empty anchor or top anchor.
+            if (href === '#' || href === '#top') {
+              window.scrollTo({ top: 0, behavior: 'smooth' });
+              return;
+            }
+
+            // Resolve target element by id, falling back to legacy name attribute.
+            var targetId = href.slice(1);
+            try {
+              targetId = decodeURIComponent(targetId);
+            } catch (err) {}
+
+            var targetEl = document.getElementById(targetId);
+            if (!targetEl) {
+              try {
+                var escaped = window.CSS && CSS.escape ? CSS.escape(targetId) : targetId.replace(/["\\]/g, '\\$&');
+                targetEl = document.querySelector('[name="' + escaped + '"]');
+              } catch (err) {}
+            }
+
+            // Smoothly scroll to the target within the embed and update URL hash history.
+            if (targetEl) {
+              targetEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+              if (window.history && window.history.pushState) {
+                window.history.pushState(null, '', href);
+              }
+            }
+          }, true); // useCapture: true is critical to preempt <base target="_blank">
+        })();
+      </script>
+    
+
+
+    
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Memory Management Visualizer - Linked List &amp; Free Space</title>
+    <!-- Tailwind CSS -->
+    <script src="./saved_resource"></script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="./all.min.css">
+    <!-- Google Fonts -->
+    <link href="./css2" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        mono: ['Fira Code', 'monospace'],
+                    },
+                    colors: {
+                        darkBg: '#0f172a',
+                        cardBg: '#1e293b',
+                        cardBorder: '#334155',
+                        processColor: '#3b82f6',
+                        holeColor: '#10b981',
+                        accent: '#6366f1'
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body {
+            background-color: #0b0f19;
+            color: #f8fafc;
+            font-family: 'Inter', sans-serif;
+            overflow-x: hidden;
+        }
+
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: #1e293b;
+            border-radius: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #475569;
+            border-radius: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+            background: #64748b;
+        }
+
+        /* Animations */
+        @keyframes pulse-highlight {
+            0%, 100% { transform: scale(1); border-color: #f59e0b; box-shadow: 0 0 15px rgba(245, 158, 11, 0.5); }
+            50% { transform: scale(1.03); border-color: #fbbf24; box-shadow: 0 0 25px rgba(251, 191, 36, 0.8); }
+        }
+
+        .highlight-scanning {
+            animation: pulse-highlight 0.6s infinite ease-in-out;
+            z-index: 20;
+        }
+
+        @keyframes success-glow {
+            0% { box-shadow: 0 0 0px #10b981; }
+            50% { box-shadow: 0 0 25px #10b981; }
+            100% { box-shadow: 0 0 0px #10b981; }
+        }
+
+        .highlight-success {
+            animation: success-glow 1s ease-in-out;
+        }
+
+        @keyframes merge-glow {
+            0% { transform: scale(0.95); opacity: 0.5; background-color: #f59e0b; }
+            50% { transform: scale(1.05); background-color: #10b981; }
+            100% { transform: scale(1); }
+        }
+
+        .animate-merge {
+            animation: merge-glow 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .node-connector {
+            position: relative;
+        }
+        .node-connector::after {
+            content: '';
+            position: absolute;
+            right: -24px;
+            top: 50%;
+            width: 24px;
+            height: 2px;
+            background: #64748b;
+        }
+
+        /* Glowing text effects */
+        .glow-text-blue {
+            text-shadow: 0 0 10px rgba(59, 130, 246, 0.5);
+        }
+        .glow-text-green {
+            text-shadow: 0 0 10px rgba(16, 185, 129, 0.5);
+        }
+    </style>
+<style>*, ::before, ::after{--tw-border-spacing-x:0;--tw-border-spacing-y:0;--tw-translate-x:0;--tw-translate-y:0;--tw-rotate:0;--tw-skew-x:0;--tw-skew-y:0;--tw-scale-x:1;--tw-scale-y:1;--tw-pan-x: ;--tw-pan-y: ;--tw-pinch-zoom: ;--tw-scroll-snap-strictness:proximity;--tw-gradient-from-position: ;--tw-gradient-via-position: ;--tw-gradient-to-position: ;--tw-ordinal: ;--tw-slashed-zero: ;--tw-numeric-figure: ;--tw-numeric-spacing: ;--tw-numeric-fraction: ;--tw-ring-inset: ;--tw-ring-offset-width:0px;--tw-ring-offset-color:#fff;--tw-ring-color:rgb(59 130 246 / 0.5);--tw-ring-offset-shadow:0 0 #0000;--tw-ring-shadow:0 0 #0000;--tw-shadow:0 0 #0000;--tw-shadow-colored:0 0 #0000;--tw-blur: ;--tw-brightness: ;--tw-contrast: ;--tw-grayscale: ;--tw-hue-rotate: ;--tw-invert: ;--tw-saturate: ;--tw-sepia: ;--tw-drop-shadow: ;--tw-backdrop-blur: ;--tw-backdrop-brightness: ;--tw-backdrop-contrast: ;--tw-backdrop-grayscale: ;--tw-backdrop-hue-rotate: ;--tw-backdrop-invert: ;--tw-backdrop-opacity: ;--tw-backdrop-saturate: ;--tw-backdrop-sepia: ;--tw-contain-size: ;--tw-contain-layout: ;--tw-contain-paint: ;--tw-contain-style: }::backdrop{--tw-border-spacing-x:0;--tw-border-spacing-y:0;--tw-translate-x:0;--tw-translate-y:0;--tw-rotate:0;--tw-skew-x:0;--tw-skew-y:0;--tw-scale-x:1;--tw-scale-y:1;--tw-pan-x: ;--tw-pan-y: ;--tw-pinch-zoom: ;--tw-scroll-snap-strictness:proximity;--tw-gradient-from-position: ;--tw-gradient-via-position: ;--tw-gradient-to-position: ;--tw-ordinal: ;--tw-slashed-zero: ;--tw-numeric-figure: ;--tw-numeric-spacing: ;--tw-numeric-fraction: ;--tw-ring-inset: ;--tw-ring-offset-width:0px;--tw-ring-offset-color:#fff;--tw-ring-color:rgb(59 130 246 / 0.5);--tw-ring-offset-shadow:0 0 #0000;--tw-ring-shadow:0 0 #0000;--tw-shadow:0 0 #0000;--tw-shadow-colored:0 0 #0000;--tw-blur: ;--tw-brightness: ;--tw-contrast: ;--tw-grayscale: ;--tw-hue-rotate: ;--tw-invert: ;--tw-saturate: ;--tw-sepia: ;--tw-drop-shadow: ;--tw-backdrop-blur: ;--tw-backdrop-brightness: ;--tw-backdrop-contrast: ;--tw-backdrop-grayscale: ;--tw-backdrop-hue-rotate: ;--tw-backdrop-invert: ;--tw-backdrop-opacity: ;--tw-backdrop-saturate: ;--tw-backdrop-sepia: ;--tw-contain-size: ;--tw-contain-layout: ;--tw-contain-paint: ;--tw-contain-style: }/* ! tailwindcss v3.4.17 | MIT License | https://tailwindcss.com */*,::after,::before{box-sizing:border-box;border-width:0;border-style:solid;border-color:#e5e7eb}::after,::before{--tw-content:''}:host,html{line-height:1.5;-webkit-text-size-adjust:100%;-moz-tab-size:4;tab-size:4;font-family:Inter, sans-serif;font-feature-settings:normal;font-variation-settings:normal;-webkit-tap-highlight-color:transparent}body{margin:0;line-height:inherit}hr{height:0;color:inherit;border-top-width:1px}abbr:where([title]){-webkit-text-decoration:underline dotted;text-decoration:underline dotted}h1,h2,h3,h4,h5,h6{font-size:inherit;font-weight:inherit}a{color:inherit;text-decoration:inherit}b,strong{font-weight:bolder}code,kbd,pre,samp{font-family:Fira Code, monospace;font-feature-settings:normal;font-variation-settings:normal;font-size:1em}small{font-size:80%}sub,sup{font-size:75%;line-height:0;position:relative;vertical-align:baseline}sub{bottom:-.25em}sup{top:-.5em}table{text-indent:0;border-color:inherit;border-collapse:collapse}button,input,optgroup,select,textarea{font-family:inherit;font-feature-settings:inherit;font-variation-settings:inherit;font-size:100%;font-weight:inherit;line-height:inherit;letter-spacing:inherit;color:inherit;margin:0;padding:0}button,select{text-transform:none}button,input:where([type=button]),input:where([type=reset]),input:where([type=submit]){-webkit-appearance:button;background-color:transparent;background-image:none}:-moz-focusring{outline:auto}:-moz-ui-invalid{box-shadow:none}progress{vertical-align:baseline}::-webkit-inner-spin-button,::-webkit-outer-spin-button{height:auto}[type=search]{-webkit-appearance:textfield;outline-offset:-2px}::-webkit-search-decoration{-webkit-appearance:none}::-webkit-file-upload-button{-webkit-appearance:button;font:inherit}summary{display:list-item}blockquote,dd,dl,figure,h1,h2,h3,h4,h5,h6,hr,p,pre{margin:0}fieldset{margin:0;padding:0}legend{padding:0}menu,ol,ul{list-style:none;margin:0;padding:0}dialog{padding:0}textarea{resize:vertical}input::placeholder,textarea::placeholder{opacity:1;color:#9ca3af}[role=button],button{cursor:pointer}:disabled{cursor:default}audio,canvas,embed,iframe,img,object,svg,video{display:block;vertical-align:middle}img,video{max-width:100%;height:auto}[hidden]:where(:not([hidden=until-found])){display:none}.absolute{position:absolute}.relative{position:relative}.sticky{position:sticky}.top-0{top:0px}.bottom-full{bottom:100%}.z-50{z-index:50}.z-30{z-index:30}.mx-auto{margin-left:auto;margin-right:auto}.mb-1{margin-bottom:0.25rem}.mb-1\.5{margin-bottom:0.375rem}.mb-2{margin-bottom:0.5rem}.mb-3{margin-bottom:0.75rem}.mb-4{margin-bottom:1rem}.mb-5{margin-bottom:1.25rem}.me-0{margin-inline-end:0px}.mt-2{margin-top:0.5rem}.mt-1{margin-top:0.25rem}.block{display:block}.inline-block{display:inline-block}.flex{display:flex}.grid{display:grid}.hidden{display:none}.h-16{height:4rem}.h-3{height:0.75rem}.h-4{height:1rem}.h-48{height:12rem}.h-full{height:100%}.min-h-\[220px\]{min-height:220px}.min-h-\[90px\]{min-height:90px}.min-h-screen{min-height:100vh}.w-28{width:7rem}.w-3{width:0.75rem}.w-\[1px\]{width:1px}.w-full{width:100%}.w-48{width:12rem}.max-w-7xl{max-width:80rem}.max-w-full{max-width:100%}.flex-1{flex:1 1 0%}.shrink-0{flex-shrink:0}.cursor-pointer{cursor:pointer}.select-none{-webkit-user-select:none;user-select:none}.grid-cols-1{grid-template-columns:repeat(1, minmax(0, 1fr))}.grid-cols-2{grid-template-columns:repeat(2, minmax(0, 1fr))}.flex-col{flex-direction:column}.items-center{align-items:center}.justify-center{justify-content:center}.justify-between{justify-content:space-between}.gap-1\.5{gap:0.375rem}.gap-2{gap:0.5rem}.gap-3{gap:0.75rem}.gap-4{gap:1rem}.gap-6{gap:1.5rem}.space-x-3 > :not([hidden]) ~ :not([hidden]){--tw-space-x-reverse:0;margin-right:calc(0.75rem * var(--tw-space-x-reverse));margin-left:calc(0.75rem * calc(1 - var(--tw-space-x-reverse)))}.space-x-6 > :not([hidden]) ~ :not([hidden]){--tw-space-x-reverse:0;margin-right:calc(1.5rem * var(--tw-space-x-reverse));margin-left:calc(1.5rem * calc(1 - var(--tw-space-x-reverse)))}.space-y-1 > :not([hidden]) ~ :not([hidden]){--tw-space-y-reverse:0;margin-top:calc(0.25rem * calc(1 - var(--tw-space-y-reverse)));margin-bottom:calc(0.25rem * var(--tw-space-y-reverse))}.space-y-4 > :not([hidden]) ~ :not([hidden]){--tw-space-y-reverse:0;margin-top:calc(1rem * calc(1 - var(--tw-space-y-reverse)));margin-bottom:calc(1rem * var(--tw-space-y-reverse))}.overflow-hidden{overflow:hidden}.overflow-x-auto{overflow-x:auto}.overflow-y-auto{overflow-y:auto}.truncate{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.whitespace-nowrap{white-space:nowrap}.rounded{border-radius:0.25rem}.rounded-2xl{border-radius:1rem}.rounded-lg{border-radius:0.5rem}.rounded-xl{border-radius:0.75rem}.rounded-full{border-radius:9999px}.border{border-width:1px}.border-b{border-bottom-width:1px}.border-t{border-top-width:1px}.border-r{border-right-width:1px}.border-dashed{border-style:dashed}.border-indigo-500\/30{border-color:rgb(99 102 241 / 0.3)}.border-slate-700{--tw-border-opacity:1;border-color:rgb(51 65 85 / var(--tw-border-opacity, 1))}.border-slate-800{--tw-border-opacity:1;border-color:rgb(30 41 59 / var(--tw-border-opacity, 1))}.border-slate-800\/80{border-color:rgb(30 41 59 / 0.8)}.border-emerald-500\/20{border-color:rgb(16 185 129 / 0.2)}.border-emerald-500\/40{border-color:rgb(16 185 129 / 0.4)}.border-emerald-600\/50{border-color:rgb(5 150 105 / 0.5)}.border-emerald-700\/40{border-color:rgb(4 120 87 / 0.4)}.bg-blue-600{--tw-bg-opacity:1;background-color:rgb(37 99 235 / var(--tw-bg-opacity, 1))}.bg-emerald-600{--tw-bg-opacity:1;background-color:rgb(5 150 105 / var(--tw-bg-opacity, 1))}.bg-indigo-600{--tw-bg-opacity:1;background-color:rgb(79 70 229 / var(--tw-bg-opacity, 1))}.bg-indigo-600\/20{background-color:rgb(79 70 229 / 0.2)}.bg-slate-800{--tw-bg-opacity:1;background-color:rgb(30 41 59 / var(--tw-bg-opacity, 1))}.bg-slate-900{--tw-bg-opacity:1;background-color:rgb(15 23 42 / var(--tw-bg-opacity, 1))}.bg-slate-900\/60{background-color:rgb(15 23 42 / 0.6)}.bg-slate-900\/80{background-color:rgb(15 23 42 / 0.8)}.bg-slate-950{--tw-bg-opacity:1;background-color:rgb(2 6 23 / var(--tw-bg-opacity, 1))}.bg-slate-950\/60{background-color:rgb(2 6 23 / 0.6)}.bg-emerald-500\/20{background-color:rgb(16 185 129 / 0.2)}.bg-emerald-950\/30{background-color:rgb(2 44 34 / 0.3)}.bg-emerald-950\/60{background-color:rgb(2 44 34 / 0.6)}.bg-gradient-to-r{background-image:linear-gradient(to right, var(--tw-gradient-stops))}.from-indigo-400{--tw-gradient-from:#818cf8 var(--tw-gradient-from-position);--tw-gradient-to:rgb(129 140 248 / 0) var(--tw-gradient-to-position);--tw-gradient-stops:var(--tw-gradient-from), var(--tw-gradient-to)}.via-purple-400{--tw-gradient-to:rgb(192 132 252 / 0)  var(--tw-gradient-to-position);--tw-gradient-stops:var(--tw-gradient-from), #c084fc var(--tw-gradient-via-position), var(--tw-gradient-to)}.to-pink-400{--tw-gradient-to:#f472b6 var(--tw-gradient-to-position)}.bg-clip-text{-webkit-background-clip:text;background-clip:text}.p-2{padding:0.5rem}.p-2\.5{padding:0.625rem}.p-3{padding:0.75rem}.p-4{padding:1rem}.p-5{padding:1.25rem}.p-6{padding:1.5rem}.p-3\.5{padding:0.875rem}.px-1{padding-left:0.25rem;padding-right:0.25rem}.px-3{padding-left:0.75rem;padding-right:0.75rem}.px-4{padding-left:1rem;padding-right:1rem}.px-6{padding-left:1.5rem;padding-right:1.5rem}.py-2{padding-top:0.5rem;padding-bottom:0.5rem}.py-2\.5{padding-top:0.625rem;padding-bottom:0.625rem}.py-4{padding-top:1rem;padding-bottom:1rem}.px-2{padding-left:0.5rem;padding-right:0.5rem}.py-0\.5{padding-top:0.125rem;padding-bottom:0.125rem}.py-1{padding-top:0.25rem;padding-bottom:0.25rem}.pb-5{padding-bottom:1.25rem}.pt-2{padding-top:0.5rem}.pb-2{padding-bottom:0.5rem}.pl-2{padding-left:0.5rem}.pr-4{padding-right:1rem}.pt-1\.5{padding-top:0.375rem}.text-left{text-align:left}.text-center{text-align:center}.font-mono{font-family:Fira Code, monospace}.text-2xl{font-size:1.5rem;line-height:2rem}.text-\[10px\]{font-size:10px}.text-\[11px\]{font-size:11px}.text-sm{font-size:0.875rem;line-height:1.25rem}.text-xl{font-size:1.25rem;line-height:1.75rem}.text-xs{font-size:0.75rem;line-height:1rem}.font-bold{font-weight:700}.font-medium{font-weight:500}.font-semibold{font-weight:600}.uppercase{text-transform:uppercase}.leading-relaxed{line-height:1.625}.tracking-wider{letter-spacing:0.05em}.text-amber-400{--tw-text-opacity:1;color:rgb(251 191 36 / var(--tw-text-opacity, 1))}.text-blue-400{--tw-text-opacity:1;color:rgb(96 165 250 / var(--tw-text-opacity, 1))}.text-emerald-400{--tw-text-opacity:1;color:rgb(52 211 153 / var(--tw-text-opacity, 1))}.text-indigo-400{--tw-text-opacity:1;color:rgb(129 140 248 / var(--tw-text-opacity, 1))}.text-slate-200{--tw-text-opacity:1;color:rgb(226 232 240 / var(--tw-text-opacity, 1))}.text-slate-300{--tw-text-opacity:1;color:rgb(203 213 225 / var(--tw-text-opacity, 1))}.text-slate-400{--tw-text-opacity:1;color:rgb(148 163 184 / var(--tw-text-opacity, 1))}.text-slate-500{--tw-text-opacity:1;color:rgb(100 116 139 / var(--tw-text-opacity, 1))}.text-transparent{color:transparent}.text-white{--tw-text-opacity:1;color:rgb(255 255 255 / var(--tw-text-opacity, 1))}.text-emerald-500\/70{color:rgb(16 185 129 / 0.7)}.text-slate-600{--tw-text-opacity:1;color:rgb(71 85 105 / var(--tw-text-opacity, 1))}.accent-indigo-500{accent-color:#6366f1}.opacity-70{opacity:0.7}.opacity-80{opacity:0.8}.shadow-lg{--tw-shadow:0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);--tw-shadow-colored:0 10px 15px -3px var(--tw-shadow-color), 0 4px 6px -4px var(--tw-shadow-color);box-shadow:var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000), var(--tw-shadow)}.shadow-xl{--tw-shadow:0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);--tw-shadow-colored:0 20px 25px -5px var(--tw-shadow-color), 0 8px 10px -6px var(--tw-shadow-color);box-shadow:var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000), var(--tw-shadow)}.shadow-2xl{--tw-shadow:0 25px 50px -12px rgb(0 0 0 / 0.25);--tw-shadow-colored:0 25px 50px -12px var(--tw-shadow-color);box-shadow:var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000), var(--tw-shadow)}.shadow-indigo-600\/20{--tw-shadow-color:rgb(79 70 229 / 0.2);--tw-shadow:var(--tw-shadow-colored)}.backdrop-blur-md{--tw-backdrop-blur:blur(12px);-webkit-backdrop-filter:var(--tw-backdrop-blur) var(--tw-backdrop-brightness) var(--tw-backdrop-contrast) var(--tw-backdrop-grayscale) var(--tw-backdrop-hue-rotate) var(--tw-backdrop-invert) var(--tw-backdrop-opacity) var(--tw-backdrop-saturate) var(--tw-backdrop-sepia);backdrop-filter:var(--tw-backdrop-blur) var(--tw-backdrop-brightness) var(--tw-backdrop-contrast) var(--tw-backdrop-grayscale) var(--tw-backdrop-hue-rotate) var(--tw-backdrop-invert) var(--tw-backdrop-opacity) var(--tw-backdrop-saturate) var(--tw-backdrop-sepia)}.transition{transition-property:color, background-color, border-color, fill, stroke, opacity, box-shadow, transform, filter, -webkit-text-decoration-color, -webkit-backdrop-filter;transition-property:color, background-color, border-color, text-decoration-color, fill, stroke, opacity, box-shadow, transform, filter, backdrop-filter;transition-property:color, background-color, border-color, text-decoration-color, fill, stroke, opacity, box-shadow, transform, filter, backdrop-filter, -webkit-text-decoration-color, -webkit-backdrop-filter;transition-timing-function:cubic-bezier(0.4, 0, 0.2, 1);transition-duration:150ms}.transition-all{transition-property:all;transition-timing-function:cubic-bezier(0.4, 0, 0.2, 1);transition-duration:150ms}.duration-300{transition-duration:300ms}.hover\:border-emerald-500:hover{--tw-border-opacity:1;border-color:rgb(16 185 129 / var(--tw-border-opacity, 1))}.hover\:bg-indigo-500:hover{--tw-bg-opacity:1;background-color:rgb(99 102 241 / var(--tw-bg-opacity, 1))}.hover\:bg-slate-700:hover{--tw-bg-opacity:1;background-color:rgb(51 65 85 / var(--tw-bg-opacity, 1))}.hover\:bg-emerald-900\/50:hover{background-color:rgb(6 78 59 / 0.5)}.hover\:text-slate-300:hover{--tw-text-opacity:1;color:rgb(203 213 225 / var(--tw-text-opacity, 1))}.focus\:border-indigo-500:focus{--tw-border-opacity:1;border-color:rgb(99 102 241 / var(--tw-border-opacity, 1))}.focus\:outline-none:focus{outline:2px solid transparent;outline-offset:2px}.active\:bg-indigo-700:active{--tw-bg-opacity:1;background-color:rgb(67 56 202 / var(--tw-bg-opacity, 1))}.group:hover .group-hover\:flex{display:flex}@media (min-width: 640px){.sm\:flex-row{flex-direction:row}}@media (min-width: 768px){.md\:p-6{padding:1.5rem}}@media (min-width: 1024px){.lg\:col-span-4{grid-column:span 4 / span 4}.lg\:col-span-8{grid-column:span 8 / span 8}.lg\:grid-cols-12{grid-template-columns:repeat(12, minmax(0, 1fr))}}</style></head>
+<body class="min-h-screen flex flex-col custom-scrollbar">
+
+    <!-- Header Section -->
+    <header class="border-b border-slate-800 bg-slate-900/80 backdrop-blur-md sticky top-0 z-50 px-6 py-4">
+        <div class="max-w-7xl mx-auto flex flex-col sm:flex-row justify-between items-center gap-4">
+            <div class="flex items-center space-x-3">
+                <div class="bg-indigo-600/20 p-2.5 rounded-xl border border-indigo-500/30 text-indigo-400">
+                    <i class="fa-solid me-0 fa-diagram-project text-2xl"></i>
+                </div>
+                <div>
+                    <h1 class="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-indigo-400 via-purple-400 to-pink-400">
+                        Memory Management Visualizer
+                    </h1>
+                    <p class="text-xs text-slate-400">Free Space Management &amp; Allocation via Dynamic Linked List</p>
+                </div>
+            </div>
+
+            <!-- Memory Usage Quick Summary -->
+            <div class="flex items-center space-x-6 bg-slate-950/60 border border-slate-800 px-4 py-2 rounded-xl text-xs font-mono">
+                <div>
+                    <span class="text-slate-400">Total:</span>
+                    <span id="stat-total" class="font-semibold text-slate-200">100 KB</span>
+                </div>
+                <div class="h-4 w-[1px] bg-slate-800"></div>
+                <div>
+                    <span class="text-slate-400">Used:</span>
+                    <span id="stat-used" class="font-semibold text-blue-400">0 KB (0%)</span>
+                </div>
+                <div class="h-4 w-[1px] bg-slate-800"></div>
+                <div>
+                    <span class="text-slate-400">Free:</span>
+                    <span id="stat-free" class="font-semibold text-emerald-400">100 KB (100%)</span>
+                </div>
+                <div class="h-4 w-[1px] bg-slate-800"></div>
+                <div>
+                    <span class="text-slate-400">Holes:</span>
+                    <span id="stat-holes" class="font-semibold text-amber-400">1</span>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content Area -->
+    <main class="flex-1 max-w-7xl w-full mx-auto p-4 md:p-6 grid grid-cols-1 lg:grid-cols-12 gap-6">
+
+        <!-- Left Controls Column (4 cols) -->
+        <div class="lg:col-span-4 flex flex-col gap-6">
+            
+            <!-- Controls Panel -->
+            <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl">
+                <h2 class="text-sm font-semibold uppercase tracking-wider text-slate-400 mb-4 flex items-center gap-2">
+                    <i class="fa-solid fa-sliders text-indigo-400"></i> Control Panel
+                </h2>
+
+                <!-- Total Memory Setup -->
+                <div class="mb-5 pb-5 border-b border-slate-800">
+                    <label class="block text-xs font-medium text-slate-300 mb-2">Total System Memory Size</label>
+                    <div class="flex gap-2">
+                        <input type="number" id="input-total-memory" value="100" min="20" max="500" step="10" class="bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-200 w-full focus:outline-none focus:border-indigo-500 font-mono">
+                        <span class="bg-slate-800 text-slate-400 px-3 py-2 rounded-lg text-xs font-mono flex items-center">KB</span>
+                        <button id="btn-reset-memory" class="bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs px-3 py-2 rounded-lg transition font-medium">
+                            Reset
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Memory Allocation Controls -->
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-xs font-medium text-slate-300 mb-1.5">Process Name</label>
+                        <input type="text" id="input-process-name" placeholder="e.g. P1" value="P1" class="bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-200 w-full focus:outline-none focus:border-indigo-500 font-mono">
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-medium text-slate-300 mb-1.5">Allocation Request Size</label>
+                        <div class="flex gap-2">
+                            <input type="number" id="input-process-size" value="20" min="1" max="200" class="bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-200 w-full focus:outline-none focus:border-indigo-500 font-mono">
+                            <span class="bg-slate-800 text-slate-400 px-3 py-2 rounded-lg text-xs font-mono flex items-center">KB</span>
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-medium text-slate-300 mb-1.5">Fit Algorithm Strategy</label>
+                        <select id="select-algorithm" class="bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-200 w-full focus:outline-none focus:border-indigo-500 font-mono">
+                            <option value="first">First Fit (First hole big enough)</option>
+                            <option value="best">Best Fit (Smallest suitable hole)</option>
+                            <option value="worst">Worst Fit (Largest available hole)</option>
+                        </select>
+                    </div>
+
+                    <!-- Speed & Step Options -->
+                    <div class="flex items-center justify-between text-xs text-slate-400 pt-2">
+                        <span>Animation Speed</span>
+                        <input type="range" id="input-speed" min="200" max="1500" value="700" class="w-28 accent-indigo-500 cursor-pointer">
+                    </div>
+
+                    <button id="btn-allocate" class="w-full bg-indigo-600 hover:bg-indigo-500 active:bg-indigo-700 text-white font-semibold py-2.5 px-4 rounded-xl shadow-lg shadow-indigo-600/20 transition flex items-center justify-center gap-2">
+                        <i class="fa-solid fa-plus-circle"></i> Allocate Memory
+                    </button>
+                </div>
+            </div>
+
+            <!-- Action Presets / Scenarios -->
+            <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl">
+                <h2 class="text-sm font-semibold uppercase tracking-wider text-slate-400 mb-3 flex items-center gap-2">
+                    <i class="fa-solid fa-flask text-emerald-400"></i> Quick Scenarios
+                </h2>
+                <div class="grid grid-cols-2 gap-2">
+                    <button id="preset-fill" class="bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs py-2 px-3 rounded-lg border border-slate-700 text-left transition">
+                        <div class="font-medium text-slate-200"><i class="fa-solid fa-boxes-stacked text-blue-400"></i> Multi-Alloc</div>
+                        <div class="text-[10px] text-slate-400">Add P1, P2, P3, P4</div>
+                    </button>
+                    <button id="preset-fragment" class="bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs py-2 px-3 rounded-lg border border-slate-700 text-left transition">
+                        <div class="font-medium text-slate-200"><i class="fa-solid fa-puzzle-piece text-amber-400"></i> Fragment</div>
+                        <div class="text-[10px] text-slate-400">Create holes pattern</div>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Algorithm Explanation Card -->
+            <div class="bg-slate-900/60 border border-slate-800/80 rounded-2xl p-5 text-xs text-slate-400 leading-relaxed">
+                <h3 id="algo-title" class="text-slate-200 font-semibold text-sm mb-1 text-indigo-400">First Fit Strategy</h3>
+                <p id="algo-desc">Allocates the request into the <i>first</i> available memory hole from the beginning of the list that is equal to or larger than the required size.</p>
+            </div>
+        </div>
+
+        <!-- Right Main Visualizations Column (8 cols) -->
+        <div class="lg:col-span-8 flex flex-col gap-6">
+
+            <!-- Linear Memory Bar Representation -->
+            <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl">
+                <div class="flex justify-between items-center mb-3">
+                    <h2 class="text-sm font-semibold uppercase tracking-wider text-slate-400 flex items-center gap-2">
+                        <i class="fa-solid fa-hard-drive text-blue-400"></i> Physical Memory Address Space
+                    </h2>
+                    <div class="flex gap-3 text-xs font-mono">
+                        <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded bg-blue-600 inline-block"></span> Allocated</span>
+                        <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded bg-emerald-600 inline-block"></span> Free Hole</span>
+                    </div>
+                </div>
+
+                <!-- Memory Strip Container -->
+                <div class="relative bg-slate-950 border border-slate-800 rounded-xl p-2 min-h-[90px] flex items-center overflow-x-auto custom-scrollbar">
+                    <div id="memory-bar" class="w-full h-16 flex rounded-lg overflow-hidden border border-slate-800 relative transition-all duration-300"><div id="bar-seg-g93tdyshz" class="h-full bg-emerald-950/60 hover:bg-emerald-900/50 border-r border-slate-800 text-emerald-400 font-mono text-xs flex flex-col items-center justify-center relative group transition-all select-none border-dashed border-emerald-700/40" style="width: 100%;">
+                        <span class="font-medium text-[11px] opacity-80 truncate max-w-full px-1">HOLE</span>
+                        <span class="text-[10px] opacity-70">100 KB</span>
+                        
+                        <!-- Tooltip -->
+                        <div class="absolute bottom-full mb-2 hidden group-hover:flex flex-col bg-slate-950 border border-slate-700 text-slate-200 text-[11px] p-2 rounded shadow-2xl z-30 whitespace-nowrap">
+                            <span class="text-emerald-400"><strong>Free Memory Hole</strong></span>
+                            <span><strong>Address Range:</strong> 0 - 100 KB</span>
+                            <span><strong>Capacity:</strong> 100 KB</span>
+                        </div>
+                    </div></div>
+                </div>
+                <div class="flex justify-between text-[11px] font-mono text-slate-500 mt-2 px-1">
+                    <span>Address: 0x0000 (0 KB)</span>
+                    <span id="max-addr-label">0x0064 (100 KB)</span>
+                </div>
+            </div>
+
+            <!-- Linked List Structure Visualization -->
+            <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl flex-1 flex flex-col">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-sm font-semibold uppercase tracking-wider text-slate-400 flex items-center gap-2">
+                        <i class="fa-solid fa-link text-emerald-400"></i> Free Space Linked List Visualization
+                    </h2>
+                    <span class="text-xs text-slate-500 font-mono">Head Address: <span id="head-addr" class="text-indigo-400">0x0000</span></span>
+                </div>
+
+                <!-- Linked List Horizontal Nodes Scroll View -->
+                <div id="linked-list-container" class="flex-1 bg-slate-950 border border-slate-800 rounded-xl p-6 overflow-x-auto custom-scrollbar min-h-[220px] flex items-center gap-6 relative"><div id="node-seg-g93tdyshz" class="flex items-center shrink-0 transition-all duration-300">
+                    <div class="bg-slate-900 border border-emerald-600/50 hover:border-emerald-500 rounded-xl p-3.5 w-48 shadow-lg relative flex flex-col gap-2 font-mono transition-all">
+                        <!-- Node Header -->
+                        <div class="flex items-center justify-between border-b border-slate-800 pb-2">
+                            <span class="text-[10px] text-slate-500">Node #0</span>
+                            <span class="text-[10px] px-2 py-0.5 rounded-full border bg-emerald-500/20 text-emerald-400 border-emerald-500/40 font-semibold">
+                                HOLE
+                            </span>
+                        </div>
+
+                        <!-- Segment Data -->
+                        <div class="space-y-1 text-xs">
+                            <div class="flex justify-between">
+                                <span class="text-slate-400">Tag / Name:</span>
+                                <span class="font-bold text-emerald-400">Free</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="text-slate-400">Start Addr:</span>
+                                <span class="text-slate-200">0x0000</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="text-slate-400">Size:</span>
+                                <span class="text-amber-400 font-semibold">100 KB</span>
+                            </div>
+                        </div>
+
+                        <!-- Action for Process -->
+                        
+                            <div class="mt-1 text-center text-[10px] text-emerald-500/70 border border-emerald-500/20 bg-emerald-950/30 rounded py-1">
+                                Available for allocation
+                            </div>
+                        
+
+                        <!-- Next Pointer Box -->
+                        <div class="mt-1 pt-1.5 border-t border-slate-800 flex justify-between items-center text-[10px] text-slate-500">
+                            <span>next:</span>
+                            <span class="font-bold text-slate-600">
+                                NULL
+                            </span>
+                        </div>
+                    </div>
+
+                    <!-- Linked List Arrow Connector -->
+                    
+                        <div class="flex items-center pl-2 pr-4 text-slate-600 font-mono text-xs font-bold">
+                            ➔ NULL
+                        </div>
+                    
+                </div></div>
+            </div>
+
+            <!-- Event Execution Log & Step Console -->
+            <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl h-48 flex flex-col">
+                <div class="flex justify-between items-center mb-2">
+                    <h2 class="text-xs font-semibold uppercase tracking-wider text-slate-400 flex items-center gap-2">
+                        <i class="fa-solid fa-terminal text-amber-400"></i> Execution Trace Log
+                    </h2>
+                    <button id="btn-clear-log" class="text-[11px] text-slate-500 hover:text-slate-300 transition">Clear Console</button>
+                </div>
+                <div id="log-console" class="flex-1 bg-slate-950 border border-slate-800 rounded-xl p-3 font-mono text-xs overflow-y-auto custom-scrollbar space-y-1 text-slate-300">
+                    <div class="text-slate-500">// System initialized. 100 KB memory free block available.</div>
+                </div>
+            </div>
+
+        </div>
+
+    </main>
+
+    <!-- Footer -->
+    <footer class="border-t border-slate-800 py-4 px-6 text-center text-xs text-slate-500 font-mono">
+        Operating System Memory Management • Linked List Free Space Tracking &amp; Allocation Strategies
+    </footer>
+
+    <!-- Application Logic Script -->
+    <script>
+        /**
+         * Memory Segment Class
+         */
+        class MemorySegment {
+            constructor(type, start, size, name = '') {
+                this.id = 'seg-' + Math.random().toString(36).substr(2, 9);
+                this.type = type; // 'P' (Process) or 'H' (Hole/Free)
+                this.start = start;
+                this.size = size;
+                this.name = name; // Process name (e.g., P1) or 'Free'
+            }
+
+            get end() {
+                return this.start + this.size;
+            }
+        }
+
+        // Global State
+        let totalMemorySize = 100;
+        let memoryList = [new MemorySegment('H', 0, 100, 'Free')];
+        let processCounter = 1;
+        let isAnimating = false;
+
+        // Algorithms Info Map
+        const algoDescriptions = {
+            'first': {
+                title: 'First Fit Allocation',
+                desc: 'Scans the linked list from the beginning (Head) and allocates the process into the very first free hole that is large enough.'
+            },
+            'best': {
+                title: 'Best Fit Allocation',
+                desc: 'Searches the entire linked list to find the smallest suitable free hole that fits the requested size, minimizing wasted leftover space.'
+            },
+            'worst': {
+                title: 'Worst Fit Allocation',
+                desc: 'Searches the entire linked list to find the largest available free hole, leaving the largest possible leftover free block.'
+            }
+        };
+
+        // DOM Elements
+        const memoryBarEl = document.getElementById('memory-bar');
+        const linkedListContainerEl = document.getElementById('linked-list-container');
+        const logConsoleEl = document.getElementById('log-console');
+        const selectAlgoEl = document.getElementById('select-algorithm');
+        const algoTitleEl = document.getElementById('algo-title');
+        const algoDescEl = document.getElementById('algo-desc');
+        const inputSpeedEl = document.getElementById('input-speed');
+
+        // Initial setup
+        window.onload = function() {
+            render();
+            updateStats();
+
+            // Event Listeners
+            document.getElementById('btn-allocate').addEventListener('click', handleAllocate);
+            document.getElementById('btn-reset-memory').addEventListener('click', handleResetMemory);
+            document.getElementById('btn-clear-log').addEventListener('click', () => {
+                logConsoleEl.innerHTML = '<div class="text-slate-500">// Console cleared.</div>';
+            });
+
+            selectAlgoEl.addEventListener('change', (e) => {
+                const info = algoDescriptions[e.target.value];
+                algoTitleEl.textContent = info.title;
+                algoDescEl.textContent = info.desc;
+            });
+
+            document.getElementById('preset-fill').addEventListener('click', runPresetFill);
+            document.getElementById('preset-fragment').addEventListener('click', runPresetFragment);
+        };
+
+        // Get delay speed helper
+        function getDelay() {
+            return 1700 - parseInt(inputSpeedEl.value);
+        }
+
+        function sleep(ms) {
+            return new Promise(resolve => setTimeout(resolve, ms));
+        }
+
+        function log(message, type = 'info') {
+            const entry = document.createElement('div');
+            let colorClass = 'text-slate-300';
+            let prefix = '[INFO]';
+
+            if (type === 'success') {
+                colorClass = 'text-emerald-400 font-semibold';
+                prefix = '[SUCCESS]';
+            } else if (type === 'error') {
+                colorClass = 'text-rose-400 font-semibold';
+                prefix = '[ERROR]';
+            } else if (type === 'scan') {
+                colorClass = 'text-amber-400';
+                prefix = '[SCAN]';
+            } else if (type === 'merge') {
+                colorClass = 'text-indigo-400 font-semibold';
+                prefix = '[COALESCE]';
+            }
+
+            entry.className = `${colorClass} leading-relaxed flex gap-2`;
+            entry.innerHTML = `<span class="text-slate-600 select-none">${new Date().toLocaleTimeString().split(' ')[0]}</span> <span>${prefix} ${message}</span>`;
+            logConsoleEl.appendChild(entry);
+            logConsoleEl.scrollTop = logConsoleEl.scrollHeight;
+        }
+
+        // Main Render Function
+        function render() {
+            renderMemoryBar();
+            renderLinkedList();
+            updateStats();
+        }
+
+        // Update top bar stats
+        function updateStats() {
+            let used = 0;
+            let holesCount = 0;
+
+            memoryList.forEach(seg => {
+                if (seg.type === 'P') used += seg.size;
+                else holesCount++;
+            });
+
+            const free = totalMemorySize - used;
+            const usedPct = Math.round((used / totalMemorySize) * 100);
+            const freePct = Math.round((free / totalMemorySize) * 100);
+
+            document.getElementById('stat-total').textContent = `${totalMemorySize} KB`;
+            document.getElementById('stat-used').textContent = `${used} KB (${usedPct}%)`;
+            document.getElementById('stat-free').textContent = `${free} KB (${freePct}%)`;
+            document.getElementById('stat-holes').textContent = holesCount;
+            document.getElementById('max-addr-label').textContent = `0x${totalMemorySize.toString(16).padStart(4, '0').toUpperCase()} (${totalMemorySize} KB)`;
+            
+            if(memoryList.length > 0) {
+                document.getElementById('head-addr').textContent = `0x${memoryList[0].start.toString(16).padStart(4, '0').toUpperCase()}`;
+            }
+        }
+
+        // Render Memory Block Strip Bar
+        function renderMemoryBar() {
+            memoryBarEl.innerHTML = '';
+
+            memoryList.forEach(seg => {
+                const widthPct = (seg.size / totalMemorySize) * 100;
+                const segEl = document.createElement('div');
+                segEl.id = `bar-${seg.id}`;
+                segEl.style.width = `${widthPct}%`;
+
+                if (seg.type === 'P') {
+                    segEl.className = 'h-full bg-blue-600 hover:bg-blue-500 border-r border-slate-900 text-white font-mono text-xs flex flex-col items-center justify-center relative group transition-all cursor-pointer select-none';
+                    segEl.innerHTML = `
+                        <span class="font-bold text-xs truncate max-w-full px-1">${seg.name}</span>
+                        <span class="text-[10px] opacity-80">${seg.size} KB</span>
+                        
+                        <!-- Tooltip -->
+                        <div class="absolute bottom-full mb-2 hidden group-hover:flex flex-col bg-slate-950 border border-slate-700 text-slate-200 text-[11px] p-2 rounded shadow-2xl z-30 whitespace-nowrap">
+                            <span><strong>Process:</strong> ${seg.name}</span>
+                            <span><strong>Address:</strong> ${seg.start} - ${seg.end} KB</span>
+                            <span><strong>Size:</strong> ${seg.size} KB</span>
+                            <span class="text-rose-400 mt-1"><i class="fa-solid fa-hand-pointer"></i> Click to Free/Deallocate</span>
+                        </div>
+                    `;
+                    segEl.addEventListener('click', () => deallocateMemory(seg.id));
+                } else {
+                    segEl.className = 'h-full bg-emerald-950/60 hover:bg-emerald-900/50 border-r border-slate-800 text-emerald-400 font-mono text-xs flex flex-col items-center justify-center relative group transition-all select-none border-dashed border-emerald-700/40';
+                    segEl.innerHTML = `
+                        <span class="font-medium text-[11px] opacity-80 truncate max-w-full px-1">HOLE</span>
+                        <span class="text-[10px] opacity-70">${seg.size} KB</span>
+                        
+                        <!-- Tooltip -->
+                        <div class="absolute bottom-full mb-2 hidden group-hover:flex flex-col bg-slate-950 border border-slate-700 text-slate-200 text-[11px] p-2 rounded shadow-2xl z-30 whitespace-nowrap">
+                            <span class="text-emerald-400"><strong>Free Memory Hole</strong></span>
+                            <span><strong>Address Range:</strong> ${seg.start} - ${seg.end} KB</span>
+                            <span><strong>Capacity:</strong> ${seg.size} KB</span>
+                        </div>
+                    `;
+                }
+
+                memoryBarEl.appendChild(segEl);
+            });
+        }
+
+        // Render Linked List Nodes Representation
+        function renderLinkedList() {
+            linkedListContainerEl.innerHTML = '';
+
+            memoryList.forEach((seg, index) => {
+                const nodeEl = document.createElement('div');
+                nodeEl.id = `node-${seg.id}`;
+                nodeEl.className = 'flex items-center shrink-0 transition-all duration-300';
+
+                const isProcess = seg.type === 'P';
+                const badgeColor = isProcess ? 'bg-blue-500/20 text-blue-400 border-blue-500/40' : 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40';
+                const cardBorder = isProcess ? 'border-blue-600/50 hover:border-blue-500' : 'border-emerald-600/50 hover:border-emerald-500';
+
+                nodeEl.innerHTML = `
+                    <div class="bg-slate-900 border ${cardBorder} rounded-xl p-3.5 w-48 shadow-lg relative flex flex-col gap-2 font-mono transition-all">
+                        <!-- Node Header -->
+                        <div class="flex items-center justify-between border-b border-slate-800 pb-2">
+                            <span class="text-[10px] text-slate-500">Node #${index}</span>
+                            <span class="text-[10px] px-2 py-0.5 rounded-full border ${badgeColor} font-semibold">
+                                ${isProcess ? 'PROCESS' : 'HOLE'}
+                            </span>
+                        </div>
+
+                        <!-- Segment Data -->
+                        <div class="space-y-1 text-xs">
+                            <div class="flex justify-between">
+                                <span class="text-slate-400">Tag / Name:</span>
+                                <span class="font-bold ${isProcess ? 'text-blue-400' : 'text-emerald-400'}">${seg.name}</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="text-slate-400">Start Addr:</span>
+                                <span class="text-slate-200">0x${seg.start.toString(16).padStart(4, '0').toUpperCase()}</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="text-slate-400">Size:</span>
+                                <span class="text-amber-400 font-semibold">${seg.size} KB</span>
+                            </div>
+                        </div>
+
+                        <!-- Action for Process -->
+                        ${isProcess ? `
+                            <button onclick="deallocateMemory('${seg.id}')" class="mt-1 w-full bg-rose-600/20 hover:bg-rose-600/40 text-rose-300 border border-rose-500/30 rounded py-1 text-[11px] transition flex items-center justify-center gap-1">
+                                <i class="fa-solid fa-trash-can text-[10px]"></i> Free Memory
+                            </button>
+                        ` : `
+                            <div class="mt-1 text-center text-[10px] text-emerald-500/70 border border-emerald-500/20 bg-emerald-950/30 rounded py-1">
+                                Available for allocation
+                            </div>
+                        `}
+
+                        <!-- Next Pointer Box -->
+                        <div class="mt-1 pt-1.5 border-t border-slate-800 flex justify-between items-center text-[10px] text-slate-500">
+                            <span>next:</span>
+                            <span class="font-bold ${index < memoryList.length - 1 ? 'text-indigo-400' : 'text-slate-600'}">
+                                ${index < memoryList.length - 1 ? `0x${memoryList[index+1].start.toString(16).padStart(4, '0').toUpperCase()}` : 'NULL'}
+                            </span>
+                        </div>
+                    </div>
+
+                    <!-- Linked List Arrow Connector -->
+                    ${index < memoryList.length - 1 ? `
+                        <div class="flex items-center px-2 text-slate-500">
+                            <i class="fa-solid fa-arrow-right text-lg text-indigo-500/70"></i>
+                        </div>
+                    ` : `
+                        <div class="flex items-center pl-2 pr-4 text-slate-600 font-mono text-xs font-bold">
+                            ➔ NULL
+                        </div>
+                    `}
+                `;
+
+                linkedListContainerEl.appendChild(nodeEl);
+            });
+        }
+
+        // Memory Allocation Handler
+        async function handleAllocate() {
+            if (isAnimating) return;
+
+            const nameInput = document.getElementById('input-process-name');
+            const sizeInput = document.getElementById('input-process-size');
+            const algo = selectAlgoEl.value;
+
+            const processName = nameInput.value.trim() || `P${processCounter}`;
+            const reqSize = parseInt(sizeInput.value);
+
+            if (isNaN(reqSize) || reqSize <= 0) {
+                log('Invalid requested memory size.', 'error');
+                return;
+            }
+
+            // Lock UI during animation
+            isAnimating = true;
+            toggleControls(false);
+
+            log(`Initiating allocation for <b>${processName}</b> (${reqSize} KB) using <b>${algo.toUpperCase()} FIT</b> strategy...`);
+
+            // Find candidates with step-by-step scan animation
+            let targetHoleIndex = -1;
+            let candidateIndices = [];
+
+            for (let i = 0; i < memoryList.length; i++) {
+                const seg = memoryList[i];
+                const nodeEl = document.getElementById(`node-${seg.id}`);
+                const barEl = document.getElementById(`bar-${seg.id}`);
+
+                // Visual Scan highlight
+                if (nodeEl) nodeEl.querySelector('div').classList.add('highlight-scanning');
+                if (barEl) barEl.classList.add('highlight-scanning');
+
+                log(`Scanning Node #${i} [${seg.name}] - Size: ${seg.size} KB`, 'scan');
+                await sleep(getDelay());
+
+                if (nodeEl) nodeEl.querySelector('div').classList.remove('highlight-scanning');
+                if (barEl) barEl.classList.remove('highlight-scanning');
+
+                if (seg.type === 'H') {
+                    if (seg.size >= reqSize) {
+                        candidateIndices.push({ index: i, size: seg.size });
+                        log(`--> Hole #${i} fits requirement (${seg.size} KB >= ${reqSize} KB).`);
+                    } else {
+                        log(`--> Hole #${i} is too small (${seg.size} KB < ${reqSize} KB).`);
+                    }
+                } else {
+                    log(`--> Node #${i} is an allocated Process (${seg.name}). Skipping.`);
+                }
+            }
+
+            // Decide target hole based on algorithm
+            if (candidateIndices.length > 0) {
+                if (algo === 'first') {
+                    targetHoleIndex = candidateIndices[0].index;
+                } else if (algo === 'best') {
+                    candidateIndices.sort((a, b) => a.size - b.size);
+                    targetHoleIndex = candidateIndices[0].index;
+                } else if (algo === 'worst') {
+                    candidateIndices.sort((a, b) => b.size - a.size);
+                    targetHoleIndex = candidateIndices[0].index;
+                }
+            }
+
+            if (targetHoleIndex !== -1) {
+                const hole = memoryList[targetHoleIndex];
+                log(`Selected Hole #${targetHoleIndex} at address 0x${hole.start.toString(16).padStart(4, '0').toUpperCase()}! Splitting memory block...`, 'success');
+
+                // Perform Allocation & List Mutation
+                const allocatedProc = new MemorySegment('P', hole.start, reqSize, processName);
+                const remainingSize = hole.size - reqSize;
+
+                if (remainingSize > 0) {
+                    // Split hole
+                    const newHole = new MemorySegment('H', hole.start + reqSize, remainingSize, 'Free');
+                    memoryList.splice(targetHoleIndex, 1, allocatedProc, newHole);
+                } else {
+                    // Exact fit
+                    memoryList.splice(targetHoleIndex, 1, allocatedProc);
+                }
+
+                render();
+
+                // Highlight new allocation
+                const newBar = document.getElementById(`bar-${allocatedProc.id}`);
+                const newNode = document.getElementById(`node-${allocatedProc.id}`);
+                if (newBar) newBar.classList.add('highlight-success');
+                if (newNode) newNode.querySelector('div').classList.add('highlight-success');
+
+                processCounter++;
+                nameInput.value = `P${processCounter}`;
+                log(`Successfully allocated ${reqSize} KB to ${processName}.`, 'success');
+
+            } else {
+                log(`Allocation Failed: Out of Memory or External Fragmentation! No single hole fits ${reqSize} KB.`, 'error');
+            }
+
+            isAnimating = false;
+            toggleControls(true);
+        }
+
+        // Deallocate Process & Coalesce adjacent holes
+        async function deallocateMemory(segId) {
+            if (isAnimating) return;
+
+            const index = memoryList.findIndex(s => s.id === segId);
+            if (index === -1) return;
+
+            const target = memoryList[index];
+            if (target.type !== 'P') return;
+
+            isAnimating = true;
+            toggleControls(false);
+
+            log(`Deallocating Process <b>${target.name}</b> (${target.size} KB) at address 0x${target.start.toString(16).padStart(4, '0').toUpperCase()}...`);
+
+            // Convert Process node into Free Hole
+            target.type = 'H';
+            target.name = 'Free';
+            render();
+
+            log(`Process ${target.name} converted to Free Hole. Checking for adjacent free holes (Coalescing)...`);
+            await sleep(getDelay());
+
+            // Check adjacent nodes for merging
+            let merged = false;
+
+            // Check Right neighbor first
+            if (index + 1 < memoryList.length && memoryList[index + 1].type === 'H') {
+                const rightHole = memoryList[index + 1];
+                log(`Found adjacent free hole to the RIGHT (${rightHole.size} KB). Merging...`, 'merge');
+                
+                target.size += rightHole.size;
+                memoryList.splice(index + 1, 1);
+                merged = true;
+                render();
+                await sleep(getDelay());
+            }
+
+            // Check Left neighbor
+            if (index - 1 >= 0 && memoryList[index - 1].type === 'H') {
+                const leftHole = memoryList[index - 1];
+                log(`Found adjacent free hole to the LEFT (${leftHole.size} KB). Merging...`, 'merge');
+                
+                leftHole.size += target.size;
+                memoryList.splice(index, 1);
+                merged = true;
+                render();
+                await sleep(getDelay());
+            }
+
+            if (!merged) {
+                log(`No adjacent free holes available for coalescing. Linked list updated.`, 'info');
+            } else {
+                log(`Coalescing complete. Memory fragmentation reduced!`, 'success');
+            }
+
+            isAnimating = false;
+            toggleControls(true);
+        }
+
+        // Reset system memory
+        function handleResetMemory() {
+            if (isAnimating) return;
+
+            const sizeInput = document.getElementById('input-total-memory');
+            const val = parseInt(sizeInput.value);
+
+            if (isNaN(val) || val < 20) {
+                log('Please set total memory to at least 20 KB.', 'error');
+                return;
+            }
+
+            totalMemorySize = val;
+            memoryList = [new MemorySegment('H', 0, totalMemorySize, 'Free')];
+            processCounter = 1;
+            document.getElementById('input-process-name').value = 'P1';
+
+            render();
+            log(`System Memory reset to total size ${totalMemorySize} KB. All holes merged.`, 'info');
+        }
+
+        // Enable/Disable controls during animation
+        function toggleControls(enabled) {
+            document.getElementById('btn-allocate').disabled = !enabled;
+            document.getElementById('btn-reset-memory').disabled = !enabled;
+            document.getElementById('preset-fill').disabled = !enabled;
+            document.getElementById('preset-fragment').disabled = !enabled;
+
+            const btnAlloc = document.getElementById('btn-allocate');
+            if (!enabled) {
+                btnAlloc.classList.add('opacity-50', 'cursor-not-allowed');
+            } else {
+                btnAlloc.classList.remove('opacity-50', 'cursor-not-allowed');
+            }
+        }
+
+        // Preset Scenario: Quick Fill
+        async function runPresetFill() {
+            if (isAnimating) return;
+            handleResetMemory();
+
+            const items = [
+                { name: 'P1', size: 20 },
+                { name: 'P2', size: 30 },
+                { name: 'P3', size: 15 },
+                { name: 'P4', size: 20 }
+            ];
+
+            for (const item of items) {
+                document.getElementById('input-process-name').value = item.name;
+                document.getElementById('input-process-size').value = item.size;
+                await handleAllocate();
+                await sleep(300);
+            }
+        }
+
+        // Preset Scenario: Fragmentation Demo
+        async function runPresetFragment() {
+            if (isAnimating) return;
+            await runPresetFill();
+
+            log('--- Creating Fragmentation Pattern by Deallocating P2 and P4 ---', 'merge');
+            
+            // Deallocate P2
+            const p2 = memoryList.find(s => s.name === 'P2');
+            if (p2) await deallocateMemory(p2.id);
+
+            // Deallocate P4
+            const p4 = memoryList.find(s => s.name === 'P4');
+            if (p4) await deallocateMemory(p4.id);
+
+            log('Fragmentation created! Multiple isolated free holes exist in the linked list.', 'success');
+        }
+    </script>
+
+
+      <script>
+        (function() {
+          // The root element's background fills the whole page. As in CSS,
+          // the body's background is used when the root element has none.
+          function getPageBackgroundColor() {
+            var docStyle = window.getComputedStyle(document.documentElement);
+            var color = docStyle.backgroundColor;
+            if ((color === 'rgba(0, 0, 0, 0)' || color === 'transparent') &&
+                docStyle.backgroundImage === 'none' && document.body) {
+              color = window.getComputedStyle(document.body).backgroundColor;
+            }
+            return color || '';
+          }
+
+          var lastReportedColor = '';
+          function reportBackgroundColor() {
+            try {
+              var color = getPageBackgroundColor();
+              if (color === lastReportedColor) return;
+              lastReportedColor = color;
+              window.parent.postMessage({
+                type: 'ATARI_CODE_EMBED_BACKGROUND_COLOR',
+                backgroundColor: color
+              }, '*');
+            } catch (e) {}
+          }
+
+          // The page background usually changes through an attribute on html
+          // or body (for example a theme class), a style sheet in head, or the
+          // system color scheme.
+          if (typeof MutationObserver !== 'undefined') {
+            var observer = new MutationObserver(reportBackgroundColor);
+            observer.observe(document.documentElement, {attributes: true});
+            if (document.body) {
+              observer.observe(document.body, {attributes: true});
+            }
+            if (document.head) {
+              observer.observe(document.head, {
+                attributes: true,
+                childList: true,
+                subtree: true,
+                characterData: true
+              });
+            }
+          }
+          var colorSchemeQuery =
+              window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)');
+          if (colorSchemeQuery && colorSchemeQuery.addEventListener) {
+            colorSchemeQuery.addEventListener('change', reportBackgroundColor);
+          }
+          window.addEventListener('load', reportBackgroundColor);
+          window.addEventListener('transitionend', reportBackgroundColor);
+          window.addEventListener('animationend', reportBackgroundColor);
+          reportBackgroundColor();
+        })();
+      </script>
+    </body></html>
